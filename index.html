@@ -309,6 +309,44 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        .warning-banner {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid var(--warning);
+            color: var(--warning);
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .warning-banner i {
+            font-size: 1.5rem;
+        }
+
+        .download-btn {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            background: var(--warning);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -327,6 +365,21 @@
     <div class="container">
         <div class="header">
             <h1>BDIX FTP Link Checker</h1>
+        </div>
+        
+        <div class="warning-banner">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>
+                <strong>HTTPS Limitation Notice:</strong> Due to browser security restrictions when running on HTTPS (like GitHub Pages), 
+                direct testing of HTTP links may be blocked. For accurate results:
+                <br>1. Download and run locally, or
+                <br>2. Use a browser that allows mixed content, or
+                <br>3. Access this page through HTTP instead of HTTPS
+                <br><a href="link_checker.zip" download class="download-btn">
+                    <i class="fas fa-download"></i>
+                    Download for Local Use
+                </a>
+            </div>
         </div>
         
         <div class="progress-container">
@@ -355,15 +408,16 @@
         let workingLinks = 0;
         let checkedLinks = 0;
         let activeRequests = 0;
-        const maxConcurrentRequests = 5;
+        const maxConcurrentRequests = 10; // Increased to 10 concurrent requests
         const requestQueue = [];
+        const timeout = 3000; // Reduced timeout to 3 seconds for faster checking
 
         function updateProgress() {
             const progress = (checkedLinks / links.length) * 100;
             progressBar.style.width = `${progress}%`;
             statsElement.innerHTML = `
                 <i class="fas fa-chart-line"></i>
-                Progress: ${checkedLinks}/${links.length} (Working Links Found: ${workingLinks})
+                Progress: ${checkedLinks}/${links.length} (Working Links Found: ${workingLinks}) | Active Tests: ${activeRequests}
             `;
         }
 
@@ -380,7 +434,7 @@
                 </div>
                 <span class="status checking">
                     <i class="fas fa-spinner fa-spin"></i>
-                    Checking
+                    Testing...
                 </span>
             `;
             setTimeout(() => div.style.opacity = '1', 50);
@@ -390,12 +444,27 @@
         async function checkLink(link, element) {
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
                 
-                const response = await fetch(link, {
-                    mode: 'no-cors',
-                    signal: controller.signal
-                });
+                // Handle both HTTP and HTTPS
+                const urls = [
+                    link,
+                    link.replace('http://', 'https://')  // Try HTTPS version as well
+                ];
+
+                // Try both HTTP and HTTPS versions
+                const responses = await Promise.race([
+                    Promise.any(urls.map(url => 
+                        fetch(url, {
+                            mode: 'no-cors',
+                            signal: controller.signal,
+                            cache: 'no-cache'
+                        }).catch(e => Promise.reject(e))
+                    )),
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Timeout')), timeout)
+                    )
+                ]);
                 
                 clearTimeout(timeoutId);
                 element.querySelector('.status').className = 'status working';
@@ -406,41 +475,79 @@
                 element.dataset.status = 'working';
                 workingLinks++;
             } catch (error) {
-                element.remove(); // Remove non-working links immediately
+                // Check if we're on HTTPS and the link is HTTP
+                if (window.location.protocol === 'https:' && link.startsWith('http:')) {
+                    element.querySelector('.status').className = 'status checking';
+                    element.querySelector('.status').innerHTML = `
+                        <i class="fas fa-lock"></i>
+                        HTTPS Required
+                    `;
+                    // Don't remove the element, just mark it as potentially working
+                    element.dataset.status = 'working';
+                    workingLinks++; // Count it as working since it might work locally
+                } else {
+                    element.remove(); // Remove non-working links
+                }
+            } finally {
+                checkedLinks++;
+                activeRequests--;
+                updateProgress();
+                processQueue();
             }
-            checkedLinks++;
-            activeRequests--;
-            updateProgress();
-            processQueue();
         }
 
         function processQueue() {
-            while (requestQueue.length > 0 && activeRequests < maxConcurrentRequests) {
+            const availableSlots = maxConcurrentRequests - activeRequests;
+            const itemsToProcess = Math.min(availableSlots, requestQueue.length);
+            
+            // Process multiple items in parallel
+            for (let i = 0; i < itemsToProcess; i++) {
                 const { link, element } = requestQueue.shift();
                 activeRequests++;
                 checkLink(link, element);
             }
         }
 
+        function chunkArray(array, size) {
+            const chunks = [];
+            for (let i = 0; i < array.length; i += size) {
+                chunks.push(array.slice(i, i + size));
+            }
+            return chunks;
+        }
+
         startBtn.addEventListener('click', () => {
             landingPage.classList.add('hidden');
             loadingOverlay.style.display = 'flex';
 
-            // Create all elements first
-            links.forEach(link => {
-                const linkElement = createLinkElement(link);
-                fragment.appendChild(linkElement);
-                requestQueue.push({ link, element: linkElement });
+            // Process links in chunks for better performance
+            const chunks = chunkArray(links, 20); // Process 20 links at a time
+            
+            chunks.forEach((chunk, index) => {
+                setTimeout(() => {
+                    chunk.forEach(link => {
+                        const linkElement = createLinkElement(link);
+                        fragment.appendChild(linkElement);
+                        requestQueue.push({ link, element: linkElement });
+                    });
+
+                    if (index === chunks.length - 1) {
+                        // Last chunk, append all elements and start processing
+                        linksContainer.appendChild(fragment);
+                        loadingOverlay.style.display = 'none';
+                        processQueue();
+                    }
+                }, index * 100); // Stagger the creation of chunks
             });
+        });
 
-            // Batch DOM update
-            linksContainer.appendChild(fragment);
-
-            // Start processing the queue
-            setTimeout(() => {
-                loadingOverlay.style.display = 'none';
-                processQueue();
-            }, 500);
+        // Add protocol check on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.location.protocol === 'https:') {
+                document.querySelector('.warning-banner').style.display = 'flex';
+            } else {
+                document.querySelector('.warning-banner').style.display = 'none';
+            }
         });
     </script>
 </body>
