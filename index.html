@@ -310,42 +310,26 @@
             100% { transform: rotate(360deg); }
         }
 
-        .warning-banner {
-            background: rgba(245, 158, 11, 0.1);
-            border: 1px solid var(--warning);
-            color: var(--warning);
-            padding: 1rem;
-            border-radius: 10px;
+        .network-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            color: white;
             margin-bottom: 2rem;
             display: flex;
             align-items: center;
-            gap: 1rem;
-            font-size: 0.9rem;
-        }
-
-        .warning-banner i {
-            font-size: 1.5rem;
-        }
-
-        .download-btn {
-            padding: 0.75rem 1.5rem;
-            font-size: 1rem;
-            background: var(--warning);
-            color: white;
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
             gap: 0.5rem;
-            margin-top: 1rem;
+            font-size: 1.1rem;
         }
 
-        .download-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+        .network-status {
+            color: var(--text-light);
+            font-size: 1.1rem;
+            margin-top: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
         }
     </style>
 </head>
@@ -356,6 +340,10 @@
 
     <div class="landing-page" id="landingPage">
         <h1>BDIX FTP Link Checker</h1>
+        <div class="network-info">
+            <i class="fas fa-network-wired"></i>
+            Testing will use your local network connection
+        </div>
         <button class="start-btn" id="startBtn">
             <i class="fas fa-play-circle"></i>
             Start Checking
@@ -365,20 +353,9 @@
     <div class="container">
         <div class="header">
             <h1>BDIX FTP Link Checker</h1>
-        </div>
-        
-        <div class="warning-banner">
-            <i class="fas fa-exclamation-triangle"></i>
-            <div>
-                <strong>HTTPS Limitation Notice:</strong> Due to browser security restrictions when running on HTTPS (like GitHub Pages), 
-                direct testing of HTTP links may be blocked. For accurate results:
-                <br>1. Download and run locally, or
-                <br>2. Use a browser that allows mixed content, or
-                <br>3. Access this page through HTTP instead of HTTPS
-                <br><a href="link_checker.zip" download class="download-btn">
-                    <i class="fas fa-download"></i>
-                    Download for Local Use
-                </a>
+            <div class="network-status" id="networkStatus">
+                <i class="fas fa-info-circle"></i>
+                Checking from your network...
             </div>
         </div>
         
@@ -405,12 +382,40 @@
         const landingPage = document.getElementById('landingPage');
         const startBtn = document.getElementById('startBtn');
         const loadingOverlay = document.getElementById('loadingOverlay');
+        const networkStatus = document.getElementById('networkStatus');
         let workingLinks = 0;
         let checkedLinks = 0;
         let activeRequests = 0;
-        const maxConcurrentRequests = 10; // Increased to 10 concurrent requests
+        const maxConcurrentRequests = 10;
         const requestQueue = [];
-        const timeout = 3000; // Reduced timeout to 3 seconds for faster checking
+        const timeout = 1000; // Reduced timeout to 1 seconds
+        const chunkSize = 30; // Increased chunk size for faster processing
+        const chunkDelay = 50; // Reduced delay between chunks
+
+        // Function to get connection type
+        async function getConnectionInfo() {
+            try {
+                if ('connection' in navigator) {
+                    const connection = navigator.connection;
+                    return {
+                        type: connection.effectiveType || 'unknown',
+                        downlink: connection.downlink || 'unknown'
+                    };
+                }
+                return { type: 'unknown', downlink: 'unknown' };
+            } catch (error) {
+                return { type: 'unknown', downlink: 'unknown' };
+            }
+        }
+
+        // Update network status
+        async function updateNetworkStatus() {
+            const connection = await getConnectionInfo();
+            networkStatus.innerHTML = `
+                <i class="fas fa-network-wired"></i>
+                Testing from your network (${connection.type} - ${connection.downlink}Mbps)
+            `;
+        }
 
         function updateProgress() {
             const progress = (checkedLinks / links.length) * 100;
@@ -446,21 +451,21 @@
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), timeout);
                 
-                // Handle both HTTP and HTTPS
-                const urls = [
-                    link,
-                    link.replace('http://', 'https://')  // Try HTTPS version as well
-                ];
-
-                // Try both HTTP and HTTPS versions
-                const responses = await Promise.race([
-                    Promise.any(urls.map(url => 
-                        fetch(url, {
-                            mode: 'no-cors',
-                            signal: controller.signal,
-                            cache: 'no-cache'
-                        }).catch(e => Promise.reject(e))
-                    )),
+                // Add timestamp to URL to prevent caching
+                const testUrl = `${link}${link.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+                
+                // Create a Promise that races between fetch and timeout
+                const response = await Promise.race([
+                    fetch(testUrl, {
+                        mode: 'no-cors',
+                        signal: controller.signal,
+                        cache: 'no-store', // Prevent caching
+                        headers: {
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache',
+                            'Expires': '0'
+                        }
+                    }),
                     new Promise((_, reject) => 
                         setTimeout(() => reject(new Error('Timeout')), timeout)
                     )
@@ -470,24 +475,12 @@
                 element.querySelector('.status').className = 'status working';
                 element.querySelector('.status').innerHTML = `
                     <i class="fas fa-check-circle"></i>
-                    Working
+                    Working (${timeout/1000}s)
                 `;
                 element.dataset.status = 'working';
                 workingLinks++;
             } catch (error) {
-                // Check if we're on HTTPS and the link is HTTP
-                if (window.location.protocol === 'https:' && link.startsWith('http:')) {
-                    element.querySelector('.status').className = 'status checking';
-                    element.querySelector('.status').innerHTML = `
-                        <i class="fas fa-lock"></i>
-                        HTTPS Required
-                    `;
-                    // Don't remove the element, just mark it as potentially working
-                    element.dataset.status = 'working';
-                    workingLinks++; // Count it as working since it might work locally
-                } else {
-                    element.remove(); // Remove non-working links
-                }
+                element.remove(); // Remove non-working links immediately
             } finally {
                 checkedLinks++;
                 activeRequests--;
@@ -502,6 +495,7 @@
             
             // Process multiple items in parallel
             for (let i = 0; i < itemsToProcess; i++) {
+                if (requestQueue.length === 0) break; // Stop if queue is empty
                 const { link, element } = requestQueue.shift();
                 activeRequests++;
                 checkLink(link, element);
@@ -516,12 +510,15 @@
             return chunks;
         }
 
-        startBtn.addEventListener('click', () => {
+        startBtn.addEventListener('click', async () => {
             landingPage.classList.add('hidden');
             loadingOverlay.style.display = 'flex';
+            
+            // Update network status before starting
+            await updateNetworkStatus();
 
             // Process links in chunks for better performance
-            const chunks = chunkArray(links, 20); // Process 20 links at a time
+            const chunks = chunkArray(links, chunkSize);
             
             chunks.forEach((chunk, index) => {
                 setTimeout(() => {
@@ -532,22 +529,12 @@
                     });
 
                     if (index === chunks.length - 1) {
-                        // Last chunk, append all elements and start processing
                         linksContainer.appendChild(fragment);
                         loadingOverlay.style.display = 'none';
                         processQueue();
                     }
-                }, index * 100); // Stagger the creation of chunks
+                }, index * chunkDelay); // Reduced delay between chunks
             });
-        });
-
-        // Add protocol check on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            if (window.location.protocol === 'https:') {
-                document.querySelector('.warning-banner').style.display = 'flex';
-            } else {
-                document.querySelector('.warning-banner').style.display = 'none';
-            }
         });
     </script>
 </body>
