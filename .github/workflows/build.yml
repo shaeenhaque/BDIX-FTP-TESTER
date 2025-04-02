@@ -7,6 +7,16 @@ on:
     branches: [ main ]
   release:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g. 1.0.0)'
+        required: false
+        default: ''
+      release_notes:
+        description: 'Release notes'
+        required: false
+        default: 'Manual build triggered from GitHub Actions'
 
 jobs:
   build-and-release-windows:
