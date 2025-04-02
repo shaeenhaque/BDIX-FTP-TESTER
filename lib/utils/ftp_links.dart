@@ -1,4 +1,5 @@
-const links = [
+class FtpLinks {
+  static const List<String> links = [
     "http://ftpbd.net",
     "http://103.58.73.6",
     "http://103.58.73.7",
@@ -368,4 +369,5 @@ const links = [
     "http://citech.net",
     "http://mwmbd.com",
     "http://103.112.206.1"
-];
+  ];
+}
