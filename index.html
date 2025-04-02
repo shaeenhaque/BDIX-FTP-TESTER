@@ -141,39 +141,11 @@
             justify-content: center;
             align-items: center;
             gap: 0.5rem;
+            margin-bottom: 2rem;
         }
 
         .controls {
-            display: flex;
-            justify-content: center;
-            gap: 1rem;
-            margin-bottom: 3rem;
-            flex-wrap: wrap;
-        }
-
-        .filter-btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            background-color: white;
-            color: var(--text);
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .filter-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .filter-btn.active {
-            background: var(--gradient);
-            color: white;
+            display: none; /* Hide the filter controls since we only show working links */
         }
 
         .links-container {
@@ -183,12 +155,16 @@
         }
 
         .link-item {
+            display: none; /* Hide all links by default */
+        }
+
+        .link-item[data-status="working"] {
+            display: flex; /* Only show working links */
             background-color: var(--card-bg);
             padding: 1.5rem;
             border-radius: 15px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
             border: 1px solid var(--card-border);
-            display: flex;
             justify-content: space-between;
             align-items: center;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -363,21 +339,6 @@
             </div>
         </div>
         
-        <div class="controls">
-            <button class="filter-btn active" data-filter="all">
-                <i class="fas fa-globe"></i>
-                All Links
-            </button>
-            <button class="filter-btn" data-filter="working">
-                <i class="fas fa-check-circle"></i>
-                Working Links
-            </button>
-            <button class="filter-btn" data-filter="error">
-                <i class="fas fa-times-circle"></i>
-                Non-working Links
-            </button>
-        </div>
-        
         <div class="links-container" id="linksContainer"></div>
     </div>
 
@@ -402,7 +363,7 @@
             progressBar.style.width = `${progress}%`;
             statsElement.innerHTML = `
                 <i class="fas fa-chart-line"></i>
-                Checking links: ${checkedLinks}/${links.length} (Working: ${workingLinks})
+                Progress: ${checkedLinks}/${links.length} (Working Links Found: ${workingLinks})
             `;
         }
 
@@ -445,12 +406,7 @@
                 element.dataset.status = 'working';
                 workingLinks++;
             } catch (error) {
-                element.querySelector('.status').className = 'status error';
-                element.querySelector('.status').innerHTML = `
-                    <i class="fas fa-times-circle"></i>
-                    Error
-                `;
-                element.dataset.status = 'error';
+                element.remove(); // Remove non-working links immediately
             }
             checkedLinks++;
             activeRequests--;
@@ -465,24 +421,6 @@
                 checkLink(link, element);
             }
         }
-
-        function filterLinks(status) {
-            document.querySelectorAll('.link-item').forEach(item => {
-                if (status === 'all' || item.dataset.status === status) {
-                    item.style.display = 'flex';
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-        }
-
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                e.target.closest('.filter-btn').classList.add('active');
-                filterLinks(e.target.closest('.filter-btn').dataset.filter);
-            });
-        });
 
         startBtn.addEventListener('click', () => {
             landingPage.classList.add('hidden');
