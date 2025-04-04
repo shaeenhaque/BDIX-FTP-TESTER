@@ -3,107 +3,138 @@ name: Build and Release
 on:
   push:
     branches: [ main ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ main ]
-  release:
-    types: [created]
   workflow_dispatch:
     inputs:
       version:
         description: 'Version number (e.g. 1.0.0)'
         required: false
         default: ''
-      release_notes:
-        description: 'Release notes'
-        required: false
-        default: 'Manual build triggered from GitHub Actions'
+
+env:
+  FLUTTER_VERSION: '3.19.0'
 
 jobs:
   build-and-release-windows:
     runs-on: windows-latest
-    
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           architecture: x64
+          cache: true
+      - run: flutter pub get
       - run: flutter config --enable-windows-desktop
-      - run: flutter build windows
-      - uses: actions/upload-artifact@v3
+      - run: flutter build windows --release
+      - name: Archive Windows Release
+        uses: actions/upload-artifact@v4
         with:
           name: windows-release
-          path: build/windows/runner/Release
+          path: build/windows/x64/runner/Release
+          compression-level: 9
 
   build-and-release-linux:
     runs-on: ubuntu-latest
-    
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
       - run: |
           sudo apt-get update -y
           sudo apt-get install -y ninja-build libgtk-3-dev
+      - run: flutter pub get
       - run: flutter config --enable-linux-desktop
-      - run: flutter build linux
-      - uses: actions/upload-artifact@v3
+      - run: flutter build linux --release
+      - name: Archive Linux Release
+        uses: actions/upload-artifact@v4
         with:
           name: linux-release
           path: build/linux/x64/release/bundle
+          compression-level: 9
 
   build-and-release-macos:
     runs-on: macos-latest
-    
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true
+      - run: flutter pub get
       - run: flutter config --enable-macos-desktop
-      - run: flutter build macos
-      - uses: actions/upload-artifact@v3
+      - run: flutter build macos --release
+      - name: Archive macOS Release
+        uses: actions/upload-artifact@v4
         with:
           name: macos-release
           path: build/macos/Build/Products/Release
+          compression-level: 9
 
   build-and-release-android:
     runs-on: ubuntu-latest
-    
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: 'gradle'
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
-      - run: flutter build apk
-      - uses: actions/upload-artifact@v3
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - name: Archive Android Release
+        uses: actions/upload-artifact@v4
         with:
           name: android-release
           path: build/app/outputs/flutter-apk/app-release.apk
+          compression-level: 9
 
   create-release:
     needs: [build-and-release-windows, build-and-release-linux, build-and-release-macos, build-and-release-android]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'created'
+    if: startsWith(github.ref, 'refs/tags/v')
     
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v3
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      
+      # Create ZIP archives for desktop releases
+      - name: Create ZIP archives
+        run: |
+          cd artifacts
+          zip -r windows-release.zip windows-release/
+          zip -r linux-release.zip linux-release/
+          zip -r macos-release.zip macos-release/
+      
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
       
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          draft: false
+          prerelease: false
           files: |
-            artifacts/windows-release/**
-            artifacts/linux-release/**
-            artifacts/macos-release/**
+            artifacts/windows-release.zip
+            artifacts/linux-release.zip
+            artifacts/macos-release.zip
             artifacts/android-release/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
