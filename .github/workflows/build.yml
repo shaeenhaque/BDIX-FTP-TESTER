@@ -56,7 +56,7 @@ jobs:
       - name: Recreate Linux files
         run: |
           rm -rf linux
-          flutter create --platforms=linux .
+          flutter create --platforms=linux --project-name bdix_ftp_tester .
           flutter clean
           flutter pub get
           flutter config --enable-linux-desktop
@@ -111,7 +111,7 @@ jobs:
           rm -rf android
           
           # Create new Android project with v2 embedding
-          flutter create --platforms=android --org com.bdixftp.tester .
+          flutter create --platforms=android --org com.bdixftp.tester --project-name bdix_ftp_tester .
           
           # Clean and get dependencies
           flutter clean
