@@ -1,4 +1,4 @@
-package com.errorx.bdix_ftp_tester
+package com.bdixftp.tester
 
 import io.flutter.embedding.android.FlutterActivity
 

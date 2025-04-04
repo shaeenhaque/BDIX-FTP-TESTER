@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.errorx" "\0"
-            VALUE "FileDescription", "bdix_ftp_tester" "\0"
+            VALUE "CompanyName", "com.bdixftp" "\0"
+            VALUE "FileDescription", "BDIX FTP Tester" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "bdix_ftp_tester" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.errorx. All rights reserved." "\0"
+            VALUE "InternalName", "BDIX FTP Tester" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 com.bdixftp. All rights reserved." "\0"
             VALUE "OriginalFilename", "bdix_ftp_tester.exe" "\0"
-            VALUE "ProductName", "bdix_ftp_tester" "\0"
+            VALUE "ProductName", "BDIX FTP Tester" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
