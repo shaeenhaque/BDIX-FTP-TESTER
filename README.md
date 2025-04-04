@@ -50,7 +50,7 @@ A modern cross-platform application to test BDIX FTP links and show working serv
 ### Setup
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/bdix-ftp-tester.git
+git clone https://github.com/FakeErrorX/bdix-ftp-tester.git
 cd bdix-ftp-tester
 ```
 
