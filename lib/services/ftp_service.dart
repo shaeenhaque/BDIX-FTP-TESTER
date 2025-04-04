@@ -1,30 +1,57 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/ftp_link.dart';
 
 class FtpService {
   static const int _timeout = 5000; // 5 seconds timeout
   static const int _concurrentTests = 20;
+  static const int _pingAttempts = 3; // Number of ping attempts for averaging
 
   Future<(bool, int)> pingHost(String url) async {
     try {
       final uri = Uri.parse(url);
-      final stopwatch = Stopwatch()..start();
+      final times = <int>[];
 
-      try {
-        final socket = await Socket.connect(
-          uri.host,
-          uri.port > 0 ? uri.port : 21,
-          timeout: const Duration(milliseconds: _timeout),
-        );
-        await socket.close();
-        stopwatch.stop();
-        return (true, stopwatch.elapsedMilliseconds);
-      } catch (e) {
-        stopwatch.stop();
-        return (false, _timeout);
+      // Take multiple measurements
+      for (var i = 0; i < _pingAttempts; i++) {
+        final stopwatch = Stopwatch()..start();
+        try {
+          final socket = await Socket.connect(
+            uri.host,
+            uri.port > 0 ? uri.port : 21,
+            timeout: const Duration(milliseconds: _timeout),
+          );
+          await socket.close();
+          stopwatch.stop();
+          times.add(stopwatch.elapsedMilliseconds);
+        } catch (e) {
+          stopwatch.stop();
+          // If we have at least one successful measurement, continue
+          if (times.isNotEmpty) continue;
+          return (false, _timeout);
+        }
       }
+
+      if (times.isEmpty) return (false, _timeout);
+
+      // Remove outliers (values more than 2 standard deviations from mean)
+      if (times.length > 2) {
+        final mean = times.reduce((a, b) => a + b) / times.length;
+        final squaredDiffs = times.map((t) => (t - mean) * (t - mean));
+        final variance = squaredDiffs.reduce((a, b) => a + b) / times.length;
+        final stdDev = sqrt(variance);
+        times.removeWhere((t) => (t - mean).abs() > 2 * stdDev);
+      }
+
+      // Calculate average of remaining times
+      final avgTime = times.isEmpty
+          ? _timeout
+          : (times.reduce((a, b) => a + b) / times.length).round();
+
+      // Ensure we don't return 0 ms (minimum 1ms)
+      return (true, avgTime < 1 ? 1 : avgTime);
     } catch (e) {
       return (false, _timeout);
     }

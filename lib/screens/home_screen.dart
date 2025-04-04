@@ -198,7 +198,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ],
                 ),
               ),
-            ).animate().fadeIn().scale(),
+            ),
           ),
           if (_isTesting)
             Padding(
@@ -226,7 +226,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               itemCount: links.length,
               itemBuilder: (context, index) {
                 final link = links[index];
-                return _LinkCard(link: link)
+                return _LinkCard(link: link, context: context)
                     .animate()
                     .fadeIn(
                       duration: const Duration(milliseconds: 300),
@@ -253,13 +253,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 class _LinkCard extends StatelessWidget {
   final FtpLink link;
+  final BuildContext context;
 
-  const _LinkCard({required this.link});
+  const _LinkCard({required this.link, required this.context});
 
-  Future<void> _launchUrl() async {
-    final url = Uri.parse(link.url);
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url);
+  Future<void> _launchUrl(FtpLink link) async {
+    try {
+      final url = Uri.parse(link.url);
+      if (await canLaunchUrl(url)) {
+        await launchUrl(
+          url,
+          mode: LaunchMode.externalApplication,
+          webViewConfiguration: const WebViewConfiguration(
+            enableJavaScript: true,
+            enableDomStorage: true,
+          ),
+        );
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not launch ${link.url}')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error launching URL: $e')),
+        );
+      }
     }
   }
 
@@ -288,7 +310,7 @@ class _LinkCard extends StatelessWidget {
         ),
         trailing: IconButton(
           icon: const Icon(Icons.open_in_new),
-          onPressed: _launchUrl,
+          onPressed: () => _launchUrl(link),
           color: AppTheme.primary,
         ),
       ),
