@@ -10,18 +10,21 @@ class FtpService {
   Future<(bool, int)> pingHost(String url) async {
     try {
       final uri = Uri.parse(url);
-      final result =
-          await Process.run('ping', ['-n', '1', '-w', '3000', uri.host]);
+      final stopwatch = Stopwatch()..start();
 
-      if (result.exitCode == 0) {
-        // Parse the ping time from output
-        final output = result.stdout.toString();
-        final timeMatch = RegExp(r'time=(\d+)ms').firstMatch(output);
-        final pingTime = timeMatch != null ? int.parse(timeMatch.group(1)!) : 0;
-        return (true, pingTime);
+      try {
+        final socket = await Socket.connect(
+          uri.host,
+          uri.port > 0 ? uri.port : 21,
+          timeout: const Duration(milliseconds: _timeout),
+        );
+        await socket.close();
+        stopwatch.stop();
+        return (true, stopwatch.elapsedMilliseconds);
+      } catch (e) {
+        stopwatch.stop();
+        return (false, _timeout);
       }
-
-      return (false, _timeout);
     } catch (e) {
       return (false, _timeout);
     }

@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:window_manager/window_manager.dart';
 import 'screens/home_screen.dart';
 import 'providers/theme_provider.dart';
 import 'utils/app_theme.dart';
+import 'services/window_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (const bool.fromEnvironment('dart.library.io')) {
-    await windowManager.ensureInitialized();
-    await windowManager.setTitle('BDIX FTP Tester');
-    await windowManager.setMinimumSize(const Size(800, 600));
-  }
+  // Initialize window service
+  await WindowService.instance.initialize();
+  await WindowService.instance.setTitle('BDIX FTP Tester');
+  await WindowService.instance.setMinimumSize(800, 600);
 
   runApp(const ProviderScope(child: MyApp()));
 }

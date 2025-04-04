@@ -25,7 +25,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    ref.read(ftpLinksProvider.notifier).initializeLinks(FtpLinks.links);
+    // Delay initialization to ensure widget is mounted
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(ftpLinksProvider.notifier).initializeLinks(FtpLinks.links);
+      }
+    });
   }
 
   Future<void> _startTesting() async {
